@@ -1,5 +1,5 @@
 # 🏥 Patient Management System 
-# Microservices & Architecture
+## Microservices & Architecture
 
 
 > Projeto de exemplo construído com **Java + Spring Boot**, seguindo uma arquitetura de microsserviços com comunicação via **REST**, **gRPC** e **Kafka**.
