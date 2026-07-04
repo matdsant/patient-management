@@ -34,4 +34,14 @@ Content-Type: application/json
   "registeredDate": "2024-11-20"
 }
 
-###
+### Test without email (should return error)
+POST http://localhost:4000/patients
+Content-Type: application/json
+
+{
+  "name": "Maria Maria",
+  "email": "maria_maria@example.com",
+  "address": "123 Sacomã",
+  "dateOfBirth": "1996-01-01",
+  "registeredDate": "2025-11-20"
+}
