@@ -3,11 +3,11 @@ POST http://localhost:4000/patients
 Content-Type: application/json
 
 {
-  "name": "Maria Silva",
-  "email": "maria.silva@example.com",
-  "address": "456 Oak St, Anytown, USA",
-  "dateOfBirth": "1995-05-15",
-  "registeredDate": "2024-11-20"
+  "name": "João Maluco",
+  "email": "joao.maluco@example.com",
+  "address": "123 Santos, NY, USA",
+  "dateOfBirth": "1991-01-22",
+  "registeredDate": "2026-01-10"
 }
 
 ### Test with existing email (should return error)
