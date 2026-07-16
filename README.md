@@ -26,8 +26,6 @@
 | **Analytics Service** | Consome eventos de pacientes para análise | Kafka (consumer) | 4002 | — |
 | **Integration Tests** | Testes de integração ponta a ponta (JUnit 5 + REST Assured) | HTTP, contra os serviços acima | — | — |
 
-> ⚠️ **Status atual**: `auth-service` e `integration-tests` têm apenas o scaffolding (pom.xml, classe principal/estrutura de pacotes) — a lógica de negócio (`AuthController`, `SecurityConfig`, `JwtUtil`, os testes de integração etc.) ainda precisa ser implementada. Isso é resultado de uma perda de conteúdo identificada no histórico do git (commit que apagou arquivos achando que estava "recuperando" algo); veja `git log --oneline -- auth-service` para o contexto.
-
 ---
 
 ## 🛠️ Tecnologias
