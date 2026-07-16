@@ -3,11 +3,11 @@ POST http://localhost:4000/patients
 Content-Type: application/json
 
 {
-  "name": "Joana Silva Souto",
-  "email": "joana.silva.souto@example.com",
-  "address": "123 Oak St, Anytown, USA",
-  "dateOfBirth": "1997-01-22",
-  "registeredDate": "2025-01-10"
+  "name": "Kafka Test",
+  "email": "kafka.test@example.com",
+  "address": "123 Oliveira, SP, BR",
+  "dateOfBirth": "1996-01-22",
+  "registeredDate": "2021-01-10"
 }
 
 ### Test with existing email (should return error)
