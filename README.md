@@ -1,22 +1,17 @@
-# Patient Management System — Microsserviços Java/Spring
+# Patient Management System — PMS 📬
 
 ---
 
-## 📖 Sobre o Projeto
-
+> ## 📖 Sobre o Projeto
 > Este projeto é um sistema de **microsserviços** construído com Spring Boot, que gerencia o cadastro de pacientes e dispara automaticamente um fluxo de eventos entre serviços para tratar **cobrança** e **analytics**.
-
-A comunicação entre os serviços combina dois modelos:
-
-- **Assíncrona (event-driven)** via **Apache Kafka** — usada para propagar eventos, como a criação de um paciente, para os serviços interessados (ex.: analytics).
-- **Síncrona** via **gRPC / Protobuf** — usada quando um serviço precisa chamar outro diretamente e aguardar uma resposta (ex.: Patient Service → Billing Service).
-
-### Fluxo típico
-
-1. Um paciente é criado no **Patient Service** (via API Gateway, com JWT emitido pelo Auth Service).
-2. O Patient Service publica um **evento no tópico Kafka `patient`** descrevendo o novo cadastro.
-3. O **Analytics Service** consome esse evento (consumer group `analytics-service`) para fins de análise.
-4. Em paralelo, o Patient Service chama o **Billing Service via gRPC** (síncrono) para gerar a cobrança correspondente.
+> A comunicação entre os serviços combina dois modelos:
+> - **Assíncrona (event-driven)** via **Apache Kafka** — usada para propagar eventos, como a criação de um paciente, para os serviços interessados (ex.: analytics).
+> - **Síncrona** via **gRPC / Protobuf** — usada quando um serviço precisa chamar outro diretamente e aguardar uma resposta (ex.: Patient Service → Billing Service).
+>> ### Fluxo típico
+>> 1. Um paciente é criado no **Patient Service** (via API Gateway, com JWT emitido pelo Auth Service).
+>> 2. O Patient Service publica um **evento no tópico Kafka `patient`** descrevendo o novo cadastro.
+>> 3. O **Analytics Service** consome esse evento (consumer group `analytics-service`) para fins de análise.
+>> 4. Em paralelo, o Patient Service chama o **Billing Service via gRPC** (síncrono) para gerar a cobrança correspondente.
 
 ---
 
