@@ -4,30 +4,34 @@
 
 ## 📖 Sobre o Projeto
 
-> Este projeto é um sistema de **microsserviços** construído com Spring Boot, que gerencia o cadastro de pacientes e dispara automaticamente um fluxo de eventos entre serviços para tratar **cobrança** e **notificações**.
+> Este projeto é um sistema de **microsserviços** construído com Spring Boot, que gerencia o cadastro de pacientes e dispara automaticamente um fluxo de eventos entre serviços para tratar **cobrança** e **analytics**.
 
 A comunicação entre os serviços combina dois modelos:
 
-- **Assíncrona (event-driven)** via **Apache Kafka** — usada para propagar eventos, como a criação de um paciente, para os serviços interessados (ex.: notificações).
+- **Assíncrona (event-driven)** via **Apache Kafka** — usada para propagar eventos, como a criação de um paciente, para os serviços interessados (ex.: analytics).
 - **Síncrona** via **gRPC / Protobuf** — usada quando um serviço precisa chamar outro diretamente e aguardar uma resposta (ex.: Patient Service → Billing Service).
 
 ### Fluxo típico
 
-1. Um paciente/usuário é criado (Auth Service / Patient Service).
-2. O serviço responsável publica um **evento no Kafka** descrevendo o novo cadastro.
-3. Serviços consumidores (ex.: **Notification Service**) reagem ao evento e executam suas ações (enviar notificação, etc.).
-4. Chamadas síncronas via **gRPC** são usadas quando é necessária uma resposta imediata (ex.: geração de cobrança no **Billing Service**).
+1. Um paciente é criado no **Patient Service** (via API Gateway, com JWT emitido pelo Auth Service).
+2. O Patient Service publica um **evento no tópico Kafka `patient`** descrevendo o novo cadastro.
+3. O **Analytics Service** consome esse evento (consumer group `analytics-service`) para fins de análise.
+4. Em paralelo, o Patient Service chama o **Billing Service via gRPC** (síncrono) para gerar a cobrança correspondente.
 
 ---
 
 ## 🧱 Arquitetura de Serviços
 
-| Serviço | Responsabilidade | Comunicação |
-|---|---|---|
-| **Auth Service** | Autenticação e gerenciamento de usuários (JWT) | REST + banco próprio |
-| **Patient Service** | Cadastro e gestão de pacientes | Kafka (producer) + gRPC (client do Billing) |
-| **Billing Service** | Geração de cobranças | gRPC (server) |
-| **Notification Service** | Envio de notificações | Kafka (consumer) |
+| Serviço | Responsabilidade | Comunicação | Porta HTTP | Outras portas |
+|---|---|---|---|---|
+| **API Gateway** | Ponto único de entrada, roteamento e validação de JWT | Spring Cloud Gateway (reativo) | 4004 | — |
+| **Auth Service** | Autenticação e gerenciamento de usuários (JWT) | REST + banco próprio | 4005 | — |
+| **Patient Service** | Cadastro e gestão de pacientes | Kafka (producer) + gRPC (client do Billing) | 4000 | — |
+| **Billing Service** | Geração de cobranças | gRPC (server) | 4001 | gRPC: 9001 |
+| **Analytics Service** | Consome eventos de pacientes para análise | Kafka (consumer) | 4002 | — |
+| **Integration Tests** | Testes de integração ponta a ponta (JUnit 5 + REST Assured) | HTTP, contra os serviços acima | — | — |
+
+> ⚠️ **Status atual**: `auth-service` e `integration-tests` têm apenas o scaffolding (pom.xml, classe principal/estrutura de pacotes) — a lógica de negócio (`AuthController`, `SecurityConfig`, `JwtUtil`, os testes de integração etc.) ainda precisa ser implementada. Isso é resultado de uma perda de conteúdo identificada no histórico do git (commit que apagou arquivos achando que estava "recuperando" algo); veja `git log --oneline -- auth-service` para o contexto.
 
 ---
 
@@ -46,14 +50,15 @@ A comunicação entre os serviços combina dois modelos:
 
 ## ⚙️ Configuração por Serviço
 
+> As dependências Maven e variáveis de ambiente abaixo já estão configuradas nos respectivos `pom.xml` e no `docker-compose.yml` — esta seção serve como referência do que cada serviço espera, não como um passo a passo de setup.
+
 ### 🩺 Patient Service
 
 **Variáveis de ambiente:**
 
 ```bash
 BILLING_SERVICE_ADDRESS=billing-service
-BILLING_SERVICE_GRPC_PORT=9005
-JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+BILLING_SERVICE_GRPC_PORT=9001
 SPRING_DATASOURCE_PASSWORD=password
 SPRING_DATASOURCE_URL=jdbc:postgresql://patient-service-db:5432/db
 SPRING_DATASOURCE_USERNAME=admin_user
@@ -62,226 +67,42 @@ SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
 SPRING_SQL_INIT_MODE=always
 ```
 
-**Dependências gRPC** (adicionar em `<dependencies>`):
-
-```xml
-<dependency>
-    <groupId>io.grpc</groupId>
-    <artifactId>grpc-netty-shaded</artifactId>
-    <version>1.69.0</version>
-</dependency>
-<dependency>
-<groupId>io.grpc</groupId>
-<artifactId>grpc-protobuf</artifactId>
-<version>1.69.0</version>
-</dependency>
-<dependency>
-<groupId>io.grpc</groupId>
-<artifactId>grpc-stub</artifactId>
-<version>1.69.0</version>
-</dependency>
-<dependency> <!-- necessário para Java 9+ -->
-<groupId>org.apache.tomcat</groupId>
-<artifactId>annotations-api</artifactId>
-<version>6.0.53</version>
-<scope>provided</scope>
-</dependency>
-<dependency>
-<groupId>net.devh</groupId>
-<artifactId>grpc-spring-boot-starter</artifactId>
-<version>3.1.0.RELEASE</version>
-</dependency>
-<dependency>
-<groupId>com.google.protobuf</groupId>
-<artifactId>protobuf-java</artifactId>
-<version>4.29.1</version>
-</dependency>
-```
-
-**Configuração do `<build>`** (substituir a seção existente):
-
-```xml
-<build>
-    <extensions>
-        <!-- Garante compatibilidade de OS para o protoc -->
-        <extension>
-            <groupId>kr.motd.maven</groupId>
-            <artifactId>os-maven-plugin</artifactId>
-            <version>1.7.0</version>
-        </extension>
-    </extensions>
-    <plugins>
-        <plugin>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-maven-plugin</artifactId>
-        </plugin>
-
-        <plugin>
-            <groupId>org.xolstice.maven.plugins</groupId>
-            <artifactId>protobuf-maven-plugin</artifactId>
-            <version>0.6.1</version>
-            <configuration>
-                <protocArtifact>com.google.protobuf:protoc:3.25.5:exe:${os.detected.classifier}</protocArtifact>
-                <pluginId>grpc-java</pluginId>
-                <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.68.1:exe:${os.detected.classifier}</pluginArtifact>
-            </configuration>
-            <executions>
-                <execution>
-                    <goals>
-                        <goal>compile</goal>
-                        <goal>compile-custom</goal>
-                    </goals>
-                </execution>
-            </executions>
-        </plugin>
-    </plugins>
-</build>
-```
-
-**Kafka Producer** — adicionar em `application.properties`:
-
-```properties
-spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer
-spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.ByteArrayDeserializer
-```
+Publica no tópico Kafka `patient` (`KafkaProducer.java`) e chama o Billing Service via gRPC (`BillingServiceGrpcClient.java`, propriedades `billing.service.address` / `billing.service.grpc.port`, default `localhost:9001`).
 
 ---
 
 ### 💳 Billing Service
 
-Usa a **mesma configuração de gRPC e `<build>`** do Patient Service (dependências e plugin `protobuf-maven-plugin` acima).
+**Variáveis de ambiente:**
+
+```bash
+SERVER_PORT=4001
+GRPC_SERVER_PORT=9001
+```
+
+Servidor gRPC (`billing.BillingService`) consumido pelo Patient Service.
 
 ---
 
-### 🔔 Notification Service
+### 📊 Analytics Service
 
 **Variáveis de ambiente:**
 
 ```bash
+SERVER_PORT=4002
 SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
 ```
 
-**Dependências** (adicionar às já existentes):
-
-```xml
-<dependency>
-    <groupId>org.springframework.kafka</groupId>
-    <artifactId>spring-kafka</artifactId>
-    <version>3.3.0</version>
-</dependency>
-
-<dependency>
-<groupId>com.google.protobuf</groupId>
-<artifactId>protobuf-java</artifactId>
-<version>4.29.1</version>
-</dependency>
-```
-
-**Configuração do `<build>`** (pom.xml):
-
-```xml
-<build>
-    <extensions>
-        <!-- Garante compatibilidade de OS para o protoc -->
-        <extension>
-            <groupId>kr.motd.maven</groupId>
-            <artifactId>os-maven-plugin</artifactId>
-            <version>1.7.0</version>
-        </extension>
-    </extensions>
-    <plugins>
-        <plugin>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-maven-plugin</artifactId>
-        </plugin>
-
-        <plugin>
-            <groupId>org.xolstice.maven.plugins</groupId>
-            <artifactId>protobuf-maven-plugin</artifactId>
-            <version>0.6.1</version>
-            <configuration>
-                <protocArtifact>com.google.protobuf:protoc:3.25.5:exe:${os.detected.classifier}</protocArtifact>
-                <pluginId>grpc-java</pluginId>
-                <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.68.1:exe:${os.detected.classifier}</pluginArtifact>
-            </configuration>
-            <executions>
-                <execution>
-                    <goals>
-                        <goal>compile</goal>
-                        <goal>compile-custom</goal>
-                    </goals>
-                </execution>
-            </executions>
-        </plugin>
-    </plugins>
-</build>
-```
+Consome o tópico `patient` (`KafkaConsumer.java`, `groupId=analytics-service`).
 
 ---
 
 ### 🔐 Auth Service
 
-**Dependências** (adicionar às já existentes):
-
-```xml
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-security</artifactId>
-</dependency>
-<dependency>
-<groupId>org.springframework.boot</groupId>
-<artifactId>spring-boot-starter-data-jpa</artifactId>
-</dependency>
-<dependency>
-<groupId>org.springframework.boot</groupId>
-<artifactId>spring-boot-starter-web</artifactId>
-</dependency>
-<dependency>
-<groupId>org.springframework.boot</groupId>
-<artifactId>spring-boot-starter-test</artifactId>
-<scope>test</scope>
-</dependency>
-<dependency>
-<groupId>org.springframework.security</groupId>
-<artifactId>spring-security-test</artifactId>
-<scope>test</scope>
-</dependency>
-<dependency>
-<groupId>io.jsonwebtoken</groupId>
-<artifactId>jjwt-api</artifactId>
-<version>0.12.6</version>
-</dependency>
-<dependency>
-<groupId>io.jsonwebtoken</groupId>
-<artifactId>jjwt-impl</artifactId>
-<version>0.12.6</version>
-<scope>runtime</scope>
-</dependency>
-<dependency>
-<groupId>io.jsonwebtoken</groupId>
-<artifactId>jjwt-jackson</artifactId>
-<version>0.12.6</version>
-<scope>runtime</scope>
-</dependency>
-<dependency>
-<groupId>org.postgresql</groupId>
-<artifactId>postgresql</artifactId>
-<scope>runtime</scope>
-</dependency>
-<dependency>
-<groupId>org.springdoc</groupId>
-<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-<version>2.6.0</version>
-</dependency>
-<dependency>
-<groupId>com.h2database</groupId>
-<artifactId>h2</artifactId>
-</dependency>
-```
-
 **Variáveis de ambiente:**
 
 ```bash
+SERVER_PORT=4005
 SPRING_DATASOURCE_PASSWORD=password
 SPRING_DATASOURCE_URL=jdbc:postgresql://auth-service-db:5432/db
 SPRING_DATASOURCE_USERNAME=admin_user
@@ -289,24 +110,21 @@ SPRING_JPA_HIBERNATE_DDL_AUTO=update
 SPRING_SQL_INIT_MODE=always
 ```
 
-**`data.sql`** (cria a tabela `users` e insere um usuário de teste, caso não exista):
+O `pom.xml` já inclui Spring Security, Spring Data JPA, `jjwt` e driver PostgreSQL. **Pendente**: implementar `AuthController`, `AuthService`, `UserService`, `SecurityConfig`, `JwtUtil`, os DTOs e o `User`/`UserRepository` (atualmente vazios) e criar um `data.sql` para popular a tabela `users`, por exemplo:
 
 ```sql
--- Garante a existência da tabela 'users'
 CREATE TABLE IF NOT EXISTS "users" (
-                                       id UUID PRIMARY KEY,
-                                       email VARCHAR(255) UNIQUE NOT NULL,
+    id UUID PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL
-    );
+);
 
--- Insere o usuário caso não exista um com o mesmo id ou email
 INSERT INTO "users" (id, email, password, role)
 SELECT '223e4567-e89b-12d3-a456-426614174006', 'testuser@test.com',
        '$2b$12$7hoRZfJrRKD2nIm2vHLs7OBETy.LWenXXMLKf99W8M4PUwO6KB7fu', 'ADMIN'
     WHERE NOT EXISTS (
-    SELECT 1
-    FROM "users"
+    SELECT 1 FROM "users"
     WHERE id = '223e4567-e89b-12d3-a456-426614174006'
        OR email = 'testuser@test.com'
 );
@@ -314,9 +132,24 @@ SELECT '223e4567-e89b-12d3-a456-426614174006', 'testuser@test.com',
 
 ---
 
-### 🗄️ Auth Service DB
+### 🌐 API Gateway
 
-**Variáveis de ambiente:**
+Rotas configuradas em `application.yml` (Spring Cloud Gateway):
+
+| Path | Destino | Filtro |
+|---|---|---|
+| `/auth/**` | `auth-service:4005` | `StripPrefix=1` |
+| `/api/patients/**` | `patient-service:4000` | `StripPrefix=1`, `JwtValidation` |
+| `/api-docs/patients` | `patient-service:4000/v3/api-docs` | `RewritePath` |
+| `/api-docs/auth` | `auth-service:4005/v3/api-docs` | `RewritePath` |
+
+O filtro `JwtValidation` (`JwtValidationGatewayFilterFactory.java`) valida o token chamando `GET /validate` no Auth Service antes de liberar a requisição.
+
+---
+
+### 🗄️ Bancos de dados (Postgres)
+
+Uma instância por serviço com estado (`auth-service-db`, `patient-service-db`), mesmas credenciais:
 
 ```bash
 POSTGRES_DB=db
@@ -326,25 +159,69 @@ POSTGRES_USER=admin_user
 
 ---
 
-## 🐳 Kafka (Container)
+## 🐳 Kafka
 
-Variáveis de ambiente para rodar o container do Kafka localmente (ex.: via IntelliJ):
+O broker roda em modo **KRaft** (sem Zookeeper), imagem oficial `apache/kafka:3.9.2`:
 
 ```bash
-KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
-KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
-KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
-KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
-KAFKA_CFG_NODE_ID=0
-KAFKA_CFG_PROCESS_ROLES=controller,broker
+KAFKA_NODE_ID=0
+KAFKA_PROCESS_ROLES=controller,broker
+KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+KAFKA_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+```
+
+De fora do Docker (ex.: um cliente Kafka local), use `localhost:9094`. Entre containers, use `kafka:9092`.
+
+> Nota: a imagem `bitnami/kafka` deixou de publicar tags versionadas gratuitamente nesse repositório — por isso o projeto usa a imagem oficial da Apache.
+
+---
+
+## 🐳 Rodando localmente com Docker Compose
+
+O `docker-compose.yml` na raiz sobe toda a stack (2x Postgres, Kafka, e os 5 serviços Spring Boot) em uma rede compartilhada, com limites de CPU/memória por container (heap da JVM ajustado via `-XX:MaxRAMPercentage` para caber no limite).
+
+```bash
+# builda as imagens e sobe tudo em background
+docker compose up -d --build
+
+# acompanhar logs de um serviço
+docker compose logs -f patient-service
+
+# derrubar (mantém os volumes/dados)
+docker compose down
+
+# derrubar e apagar os dados dos bancos/kafka também
+docker compose down -v
+```
+
+**Portas expostas no host:**
+
+| Serviço | Porta |
+|---|---|
+| api-gateway | `4004` |
+| auth-service | `4005` |
+| patient-service | `4000` |
+| billing-service | `4001` (HTTP) / `9001` (gRPC) |
+| analytics-service | `4002` |
+| patient-service-db | `5432` |
+| auth-service-db | `5433` |
+| kafka (listener externo) | `9094` |
+
+Exemplo de smoke test depois do `docker compose up`:
+
+```bash
+curl http://localhost:4004/api-docs/patients   # via API Gateway
+curl http://localhost:4000/patients            # direto no Patient Service
 ```
 
 ---
 
 ## ✅ Resumo do Fluxo (explicação rápida)
 
-> Sistema de microsserviços com comunicação assíncrona via **Kafka** e chamadas síncronas via **gRPC**: quando um paciente é criado, um evento é publicado e serviços como cobrança e notificações reagem a esse evento para completar o fluxo de cadastro e faturamento.
+> Sistema de microsserviços com comunicação assíncrona via **Kafka** e chamadas síncronas via **gRPC**: quando um paciente é criado, um evento é publicado e o Analytics Service reage a esse evento, enquanto o Billing Service é chamado de forma síncrona para gerar a cobrança.
 
 ---
 
