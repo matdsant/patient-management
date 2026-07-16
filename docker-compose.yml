@@ -1,0 +1,198 @@
+name: patient-management
+
+networks:
+  pm-network:
+    driver: bridge
+
+volumes:
+  patient-service-db-data:
+  auth-service-db-data:
+  kafka-data:
+
+x-app-defaults: &app-defaults
+  networks:
+    - pm-network
+  restart: unless-stopped
+
+services:
+
+  # ---------- Bancos de dados ----------
+
+  patient-service-db:
+    image: postgres:17-alpine
+    <<: *app-defaults
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - patient-service-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin_user -d db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  auth-service-db:
+    image: postgres:17-alpine
+    <<: *app-defaults
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth-service-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin_user -d db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # ---------- Mensageria ----------
+
+  kafka:
+    image: apache/kafka:3.9.2
+    <<: *app-defaults
+    ports:
+      - "9094:9094"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    environment:
+      KAFKA_NODE_ID: 0
+      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+
+  # ---------- Serviços da aplicação ----------
+
+  auth-service:
+    build: ./auth-service
+    <<: *app-defaults
+    depends_on:
+      auth-service-db:
+        condition: service_healthy
+    ports:
+      - "4005:4005"
+    environment:
+      SERVER_PORT: 4005
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-service-db:5432/db
+      SPRING_DATASOURCE_USERNAME: admin_user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_SQL_INIT_MODE: always
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0 -XX:+UseSerialGC
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 400M
+
+  patient-service:
+    build: ./patient-service
+    <<: *app-defaults
+    depends_on:
+      patient-service-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      billing-service:
+        condition: service_started
+    ports:
+      - "4000:4000"
+    environment:
+      SERVER_PORT: 4000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://patient-service-db:5432/db
+      SPRING_DATASOURCE_USERNAME: admin_user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_SQL_INIT_MODE: always
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      BILLING_SERVICE_ADDRESS: billing-service
+      BILLING_SERVICE_GRPC_PORT: 9001
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0 -XX:+UseSerialGC
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 400M
+
+  billing-service:
+    build: ./billing-service
+    <<: *app-defaults
+    ports:
+      - "4001:4001"
+      - "9001:9001"
+    environment:
+      SERVER_PORT: 4001
+      GRPC_SERVER_PORT: 9001
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0 -XX:+UseSerialGC
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 400M
+
+  analytics-service:
+    build: ./analytics-service
+    <<: *app-defaults
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "4002:4002"
+    environment:
+      SERVER_PORT: 4002
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0 -XX:+UseSerialGC
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 400M
+
+  api-gateway:
+    build: ./api-gateway
+    <<: *app-defaults
+    depends_on:
+      - auth-service
+      - patient-service
+      - billing-service
+    ports:
+      - "4004:4004"
+    environment:
+      SERVER_PORT: 4004
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0 -XX:+UseSerialGC
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 350M
