@@ -219,3 +219,37 @@ curl http://localhost:4000/patients            # direto no Patient Service
 > Sistema de microsserviços com comunicação assíncrona via **Kafka** e chamadas síncronas via **gRPC**: quando um paciente é criado, um evento é publicado e o Analytics Service reage a esse evento, enquanto o Billing Service é chamado de forma síncrona para gerar a cobrança.
 
 ---
+
+## 🚧 Roadmap Técnico / Melhorias Futuras
+
+> Levantamento de pontos de melhoria identificados em auditoria técnica do código atual. Organizado por prioridade para servir de backlog.
+
+### 🔴 Pontos Críticos
+
+- [ ] **Reimplementar `auth-service`** — `SecurityConfig`, `AuthController`, `AuthService`, `UserService`, `JwtUtil`, `User`, `UserRepository` e os DTOs estão vazios (0 bytes), e não existe `application.properties`/`.yml` no módulo. Hoje o sistema não autentica ninguém de verdade, mesmo o gateway chamando `auth-service:4005/validate`.
+- [ ] **Fechar as portas dos serviços internos no host** — `patient-service` (4000), `billing-service` (4001/9001) e `analytics-service` (4002) são acessíveis diretamente via Docker, sem passar pelo `api-gateway` e sem nenhuma checagem de JWT própria. O filtro `JwtValidation` do gateway é hoje o único ponto de auth do sistema e é trivialmente contornável.
+- [ ] **Criar testes de verdade** — todos os testes hoje são `contextLoads()` (smoke test do Spring) ou arquivos vazios, incluindo o módulo `integration-tests` (que já tem `rest-assured`/JUnit 5 configurados, mas `AuthIntegrationTest.java` e `PatientIntegrationTest.java` estão em branco). Nenhuma classe (`PatientController`, `PatientService`, `PatientMapper`, `GlobalExceptionHandler`, `JwtValidationGatewayFilterFactory`, `BillingGrpcService`, `KafkaConsumer`) tem cobertura.
+- [ ] **Tratar erro da chamada gRPC em `PatientService.createPatient()`** — hoje, se o `billing-service` estiver fora do ar, o paciente já foi salvo no Postgres e a exceção do gRPC sobe sem tratamento, retornando 500 sem indicar se a cobrança/evento Kafka foi criado. Avaliar `@Transactional` + tratamento explícito da falha (compensação ou fila de retry).
+- [ ] **Implementar `billing-service` de verdade** — `BillingGrpcService.createBillingAccount()` sempre retorna `accountId = "12345"` fixo, ignora o request e não tem entidade, repositório nem persistência.
+
+### 🟡 Pontos Importantes
+
+- [ ] Adicionar paginação em `GET /patients` (hoje usa `findAll()` sem limite).
+- [ ] Criar endpoint `GET /patients/{id}` (hoje só existe listagem completa).
+- [ ] Corrigir códigos HTTP: `PatientNotFoundException` deveria retornar 404 (hoje retorna 400) e `EmailAlreadyExistsException` deveria retornar 409 (hoje retorna 400).
+- [ ] Adotar Flyway ou Liquibase para migrações — hoje o schema é gerenciado só por `ddl-auto=update` + `data.sql`.
+- [ ] Adicionar Spring Boot Actuator (`/health`, `/metrics`) nos 5 serviços e configurar `healthcheck:` no `docker-compose.yml` para cada um (hoje só Postgres e Kafka têm healthcheck; `depends_on: service_started` não garante que a aplicação já esteja pronta).
+- [ ] Adicionar rate limiting no `api-gateway` (nenhum filtro de limite de requisições configurado hoje).
+- [ ] Mover credenciais dos bancos (`POSTGRES_PASSWORD=password`, repetida em dois bancos) para `.env`/secrets em vez de texto plano no `docker-compose.yml`.
+- [ ] Configurar dead-letter queue / retry no consumidor Kafka do `analytics-service` (hoje uma falha de desserialização só loga e descarta a mensagem).
+- [ ] Adicionar timeout/tratamento de erro em `JwtValidationGatewayFilterFactory` para quando `auth-service` estiver fora do ar ou lento.
+
+### 🟢 Pontos de Melhorias
+
+- [ ] Unificar os arquivos `.proto` duplicados (`billing_service.proto` existe idêntico em `billing-service` e `patient-service`; `patient_event.proto` existe idêntico em `patient-service` e `analytics-service`) em um módulo de contrato compartilhado.
+- [ ] Padronizar o formato de resposta de erro entre serviços — hoje só `patient-service` tem `@ControllerAdvice`, e mesmo lá o formato varia entre erros de validação e erros de negócio.
+- [ ] Adicionar versionamento de API (ex.: prefixo `/v1/...`).
+- [ ] Reduzir duplicação entre `application.yml` e `application-prod.yml` no `api-gateway` (hoje duplicam a lista inteira de rotas só para trocar o host).
+- [ ] Trocar `String` por `LocalDate` (com validação de formato) nos campos de data do `PatientRequestDTO`, para falhar de forma limpa em vez de estourar exceção no parse.
+
+---
