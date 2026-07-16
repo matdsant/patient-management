@@ -9,12 +9,11 @@
         <module name="analytics-service" />
         <module name="api-gateway" />
         <module name="patient-service" />
+        <module name="billing-service" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
-      <module name="analytics-service" target="21" />
       <module name="api-gateway" target="21" />
-      <module name="billing-service" target="21" />
     </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
