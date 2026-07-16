@@ -1,4 +1,4 @@
-# Patient Management System — PMS 📬
+# Patient Management System — PMS 🏥
 
 ---
 
@@ -219,4 +219,3 @@ curl http://localhost:4000/patients            # direto no Patient Service
 > Sistema de microsserviços com comunicação assíncrona via **Kafka** e chamadas síncronas via **gRPC**: quando um paciente é criado, um evento é publicado e o Analytics Service reage a esse evento, enquanto o Billing Service é chamado de forma síncrona para gerar a cobrança.
 
 ---
-
