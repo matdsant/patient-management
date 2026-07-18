@@ -25,6 +25,7 @@
 | **Billing Service** | Geração de cobranças | gRPC (server) | 4001 | gRPC: 9001 |
 | **Analytics Service** | Consome eventos de pacientes para análise | Kafka (consumer) | 4002 | — |
 | **Integration Tests** | Testes de integração ponta a ponta (JUnit 5 + REST Assured) | HTTP, contra os serviços acima | — | — |
+| **Infrastructure** | Provisionamento da stack na AWS (via LocalStack) | AWS CDK (Java) | — | — |
 
 ---
 
@@ -103,25 +104,16 @@ SPRING_JPA_HIBERNATE_DDL_AUTO=update
 SPRING_SQL_INIT_MODE=always
 ```
 
-O `pom.xml` já inclui Spring Security, Spring Data JPA, `jjwt` e driver PostgreSQL. **Pendente**: implementar `AuthController`, `AuthService`, `UserService`, `SecurityConfig`, `JwtUtil`, os DTOs e o `User`/`UserRepository` (atualmente vazios) e criar um `data.sql` para popular a tabela `users`, por exemplo:
+> ⚠️ `JwtUtil` também exige uma property `jwt.secret` (chave Base64) para assinar/validar o token, mas ela **não** está definida em `application.properties` nem no `docker-compose.yml` — veja o roadmap abaixo.
 
-```sql
-CREATE TABLE IF NOT EXISTS "users" (
-    id UUID PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL
-);
+Endpoints (`AuthController`):
 
-INSERT INTO "users" (id, email, password, role)
-SELECT '223e4567-e89b-12d3-a456-426614174006', 'testuser@test.com',
-       '$2b$12$7hoRZfJrRKD2nIm2vHLs7OBETy.LWenXXMLKf99W8M4PUwO6KB7fu', 'ADMIN'
-    WHERE NOT EXISTS (
-    SELECT 1 FROM "users"
-    WHERE id = '223e4567-e89b-12d3-a456-426614174006'
-       OR email = 'testuser@test.com'
-);
-```
+| Método | Path | Descrição |
+|---|---|---|
+| `POST` | `/login` | Recebe `{ email, password }`, valida contra `UserRepository` (senha com `BCryptPasswordEncoder`) e retorna `{ token }` (JWT, expira em 10h) |
+| `GET` | `/validate` | Recebe `Authorization: Bearer <token>` e retorna 200/401 conforme a assinatura/validade do token (`JwtUtil`) |
+
+`SecurityConfig` hoje libera todas as rotas (`permitAll()`) e desabilita CSRF — a própria emissão/validação do JWT é quem controla o acesso. `data.sql` popula a tabela `users` com um usuário de teste (`testuser@test.com` / `password123`, role `ADMIN`) se ela ainda não existir.
 
 ---
 
@@ -207,8 +199,45 @@ Exemplo de smoke test depois do `docker compose up`:
 
 ```bash
 curl http://localhost:4004/api-docs/patients   # via API Gateway
-curl http://localhost:4000/patients            # direto no Patient Service
+
+# login para obter o token JWT
+curl -X POST http://localhost:4004/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"testuser@test.com","password":"password123"}'
+
+# usa o token para acessar a rota protegida
+curl http://localhost:4004/api/patients -H "Authorization: Bearer <token>"
 ```
+
+---
+
+## ✅ Testes de Integração
+
+Módulo `integration-tests` (JUnit 5 + REST Assured), apontando para o `api-gateway` em `http://localhost:4004`. Requer a stack no ar (`docker compose up -d`) antes de rodar:
+
+```bash
+cd integration-tests
+mvn test
+```
+
+- `AuthIntegrationTest` — login com credenciais válidas retorna 200 + token; credenciais inválidas retornam 401.
+- `PatientIntegrationTest` — faz login, usa o token para chamar `GET /api/patients` via gateway e valida o retorno.
+
+---
+
+## ☁️ Infraestrutura (LocalStack / AWS CDK)
+
+Módulo `infrastructure` define, em AWS CDK (Java), o provisionamento da stack completa para simulação local via **LocalStack**: VPC, um `DatabaseInstance` Postgres por serviço com estado (`auth-service`, `patient-service`) com health check, um cluster MSK para o Kafka, um cluster ECS Fargate com um serviço por módulo (`auth-service`, `billing-service`, `analytics-service`, `patient-service`) e um `api-gateway` exposto via Application Load Balancer.
+
+```bash
+cd infrastructure
+mvn compile exec:java   # gera o template CDK em ./cdk.out
+
+# aplica o stack no LocalStack e recupera o DNS do load balancer
+./localstack-deploy.sh
+```
+
+> Pressupõe LocalStack rodando localmente e a AWS CLI configurada para apontar para `http://localhost:4566`.
 
 ---
 
@@ -224,9 +253,11 @@ curl http://localhost:4000/patients            # direto no Patient Service
 
 ### 🔴 Pontos Críticos
 
-- [ ] **Reimplementar `auth-service`** — `SecurityConfig`, `AuthController`, `AuthService`, `UserService`, `JwtUtil`, `User`, `UserRepository` e os DTOs estão vazios (0 bytes), e não existe `application.properties`/`.yml` no módulo. Hoje o sistema não autentica ninguém de verdade, mesmo o gateway chamando `auth-service:4005/validate`.
+- [x] ~~**Reimplementar `auth-service`**~~ — `AuthController`, `AuthService`, `UserService`, `JwtUtil`, `User`/`UserRepository`, DTOs e `SecurityConfig` já implementados, com `data.sql` populando um usuário de teste.
+- [ ] **Definir `JWT_SECRET` no `auth-service`** — `JwtUtil` exige a property `jwt.secret` (`@Value("${jwt.secret}")`, sem default) para assinar/validar o token, mas ela não está em `application.properties` nem nas variáveis de ambiente do `auth-service` no `docker-compose.yml`. Hoje o serviço só sobe se essa variável for passada manualmente; falta adicioná-la ao compose (o módulo `infrastructure`/CDK já usa `JWT_SECRET=Y2hhVEc3aHJnb0hYTzMyZ2ZqVkpiZ1RkZG93YWxrUkM=` como referência).
+- [ ] **Endurecer `SecurityConfig` do auth-service** — hoje libera todas as rotas (`anyRequest().permitAll()`) só para viabilizar `/login` e `/validate` publicamente; vale revisar se algo mais deveria exigir autenticação conforme o serviço crescer.
 - [ ] **Fechar as portas dos serviços internos no host** — `patient-service` (4000), `billing-service` (4001/9001) e `analytics-service` (4002) são acessíveis diretamente via Docker, sem passar pelo `api-gateway` e sem nenhuma checagem de JWT própria. O filtro `JwtValidation` do gateway é hoje o único ponto de auth do sistema e é trivialmente contornável.
-- [ ] **Criar testes de verdade** — todos os testes hoje são `contextLoads()` (smoke test do Spring) ou arquivos vazios, incluindo o módulo `integration-tests` (que já tem `rest-assured`/JUnit 5 configurados, mas `AuthIntegrationTest.java` e `PatientIntegrationTest.java` estão em branco). Nenhuma classe (`PatientController`, `PatientService`, `PatientMapper`, `GlobalExceptionHandler`, `JwtValidationGatewayFilterFactory`, `BillingGrpcService`, `KafkaConsumer`) tem cobertura.
+- [x] ~~**Criar testes de verdade**~~ — o módulo `integration-tests` agora cobre o fluxo de login (`AuthIntegrationTest`) e o acesso autenticado a `GET /api/patients` via gateway (`PatientIntegrationTest`). Ainda faltam testes unitários para `PatientController`, `PatientService`, `PatientMapper`, `GlobalExceptionHandler`, `JwtValidationGatewayFilterFactory`, `BillingGrpcService` e `KafkaConsumer`.
 - [ ] **Tratar erro da chamada gRPC em `PatientService.createPatient()`** — hoje, se o `billing-service` estiver fora do ar, o paciente já foi salvo no Postgres e a exceção do gRPC sobe sem tratamento, retornando 500 sem indicar se a cobrança/evento Kafka foi criado. Avaliar `@Transactional` + tratamento explícito da falha (compensação ou fila de retry).
 - [ ] **Implementar `billing-service` de verdade** — `BillingGrpcService.createBillingAccount()` sempre retorna `accountId = "12345"` fixo, ignora o request e não tem entidade, repositório nem persistência.
 
