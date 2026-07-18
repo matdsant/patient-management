@@ -15,6 +15,30 @@
 
 ---
 
+## 📑 Índice
+
+- [🧱 Arquitetura de Serviços](#arquitetura-de-serviços)
+- [🛠️ Tecnologias](#tecnologias)
+- [⚙️ Configuração por Serviço](#configuração-por-serviço)
+  - [🩺 Patient Service](#patient-service)
+  - [💳 Billing Service](#billing-service)
+  - [📊 Analytics Service](#analytics-service)
+  - [🔐 Auth Service](#auth-service)
+  - [🌐 API Gateway](#api-gateway)
+  - [🗄️ Bancos de dados (Postgres)](#bancos-de-dados-postgres)
+- [🐳 Kafka](#kafka)
+- [🐳 Rodando localmente com Docker Compose](#rodando-localmente-com-docker-compose)
+- [📄 Documentação Swagger](#documentação-swagger)
+- [✅ Testes de Integração](#testes-de-integração)
+- [☁️ Infraestrutura (LocalStack / AWS CDK)](#infraestrutura-localstack--aws-cdk)
+- [✅ Resumo do Fluxo (explicação rápida)](#resumo-do-fluxo-explicação-rápida)
+- [🚧 Roadmap Técnico / Melhorias Futuras](#roadmap-técnico--melhorias-futuras)
+  - [🔴 Pontos Críticos](#pontos-críticos)
+  - [🟡 Pontos Importantes](#pontos-importantes)
+  - [🟢 Pontos de Melhorias](#pontos-de-melhorias)
+
+---
+
 ## 🧱 Arquitetura de Serviços
 
 | Serviço | Responsabilidade | Comunicação | Porta HTTP | Outras portas |
@@ -212,6 +236,12 @@ curl -X POST http://localhost:4004/auth/login \
 # usa o token para acessar a rota protegida
 curl http://localhost:4004/api/patients -H "Authorization: Bearer <token>"
 ```
+
+As mesmas chamadas também estão disponíveis como requisições prontas para rodar direto na IDE (IntelliJ HTTP Client), sem precisar copiar `curl`:
+
+- `api-requests/auth-service/login.http` — login e captura automática do token (`client.global.set`).
+- `api-requests/auth-service/validate.http` — valida o token capturado pelo `login.http`.
+- `grpc-requests/billing-service/create-billing-account.http` — chamada gRPC direta ao `billing-service`.
 
 ---
 
