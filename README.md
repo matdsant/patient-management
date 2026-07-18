@@ -104,6 +104,10 @@ SPRING_JPA_HIBERNATE_DDL_AUTO=update
 SPRING_SQL_INIT_MODE=always
 ```
 
+> 💡 Para inspecionar os dados localmente (ex.: via IntelliJ Data Sources, DBeaver, pgAdmin),
+> conecte em `localhost:5433` (auth-service-db) ou `localhost:5432` (patient-service-db)
+> usando as credenciais acima.
+
 > ⚠️ `JwtUtil` também exige uma property `jwt.secret` (chave Base64) para assinar/validar o token, mas ela **não** está definida em `application.properties` nem no `docker-compose.yml` — veja o roadmap abaixo.
 
 Endpoints (`AuthController`):
