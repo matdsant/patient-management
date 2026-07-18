@@ -89,8 +89,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1.0"
-          memory: 768M
+          cpus: "0.5"
+          memory: 500M
 
   # ---------- Serviços da aplicação ----------
 
