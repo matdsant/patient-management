@@ -339,7 +339,7 @@ mvn compile exec:java   # gera o template CDK em ./cdk.out
 
 - [ ] Adicionar paginação em `GET /patients` (hoje usa `findAll()` sem limite).
 - [ ] Criar endpoint `GET /patients/{id}` (hoje só existe listagem completa).
-- [ ] Corrigir códigos HTTP: `PatientNotFoundException` deveria retornar 404 (hoje retorna 400) e `EmailAlreadyExistsException` deveria retornar 409 (hoje retorna 400).
+- [x] ~~Corrigir códigos HTTP~~ — `PatientNotFoundException` agora retorna 404 e `EmailAlreadyExistsException` retorna 409 (`GlobalExceptionHandler`), com os códigos documentados via `@ApiResponses` em cada endpoint do `PatientController`.
 - [ ] Adotar Flyway ou Liquibase para migrações — hoje o schema é gerenciado só por `ddl-auto=update` + `data.sql`.
 - [ ] Adicionar Spring Boot Actuator (`/health`, `/metrics`) nos 5 serviços e configurar `healthcheck:` no `docker-compose.yml` para cada um (hoje só Postgres e Kafka têm healthcheck; `depends_on: service_started` não garante que a aplicação já esteja pronta).
 - [ ] Adicionar rate limiting no `api-gateway` (nenhum filtro de limite de requisições configurado hoje).

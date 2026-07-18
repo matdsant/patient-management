@@ -5,6 +5,8 @@ import com.pm.patientservice.dto.PatientResponseDTO;
 import com.pm.patientservice.dto.validators.CreatePatientValidationGroup;
 import com.pm.patientservice.service.PatientService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.groups.Default;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +28,9 @@ public class PatientController {
 
     @GetMapping
     @Operation(summary = "Get Patients")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Patients found and returned successfully")
+    })
     public ResponseEntity<List<PatientResponseDTO>> getPatients() {
         List<PatientResponseDTO> patients = patientService.getPatients();
         return ResponseEntity.ok().body(patients);
@@ -33,6 +38,11 @@ public class PatientController {
 
     @PostMapping
     @Operation(summary = "Create a new Patient")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Patient created successfully"),
+            @ApiResponse(responseCode = "400", description = "Validation error in the request body"),
+            @ApiResponse(responseCode = "409", description = "A patient with this email already exists")
+    })
     public ResponseEntity<PatientResponseDTO> createPatient(
             @Validated({Default.class, CreatePatientValidationGroup.class})
             @RequestBody PatientRequestDTO patientRequestDTO) {
@@ -45,6 +55,12 @@ public class PatientController {
 
     @PutMapping("/{id}")
     @Operation(summary = "Update a Patient")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Patient updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Validation error in the request body"),
+            @ApiResponse(responseCode = "404", description = "Patient not found for the given ID"),
+            @ApiResponse(responseCode = "409", description = "A patient with this email already exists")
+    })
     public ResponseEntity<PatientResponseDTO> updatePatient(
             @PathVariable UUID id, @Validated({Default.class})
             @RequestBody PatientRequestDTO patientRequestDTO) {
@@ -57,6 +73,10 @@ public class PatientController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a Patient")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Patient deleted successfully"),
+            @ApiResponse(responseCode = "404", description = "Patient not found for the given ID")
+    })
     public ResponseEntity<Void> deletePatient(@PathVariable UUID id) {
         patientService.deletePatient(id);
 

@@ -39,3 +39,18 @@ spring:
             - Path=/api-docs/auth
           filters:
             - RewritePath=/api-docs/auth,/v3/api-docs
+
+        # Proxy do Swagger UI do patient-service, para acesso sem expor a porta 4000 no host
+        - id: swagger-ui-patients-route
+          uri: http://patient-service:4000
+          predicates:
+            - Path=/swagger-ui/patients/**
+          filters:
+            - RewritePath=/swagger-ui/patients/(?<segment>.*),/swagger-ui/${segment}
+
+        # O bundle do Swagger UI busca o spec (e /v3/api-docs/swagger-config) em um
+        # caminho absoluto fixo, por isso essa rota complementa a acima (sem StripPrefix)
+        - id: api-docs-raw-patients-route
+          uri: http://patient-service:4000
+          predicates:
+            - Path=/v3/api-docs/**

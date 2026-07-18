@@ -1,6 +1,7 @@
 package com.pm.patientservice.dto;
 
 import com.pm.patientservice.dto.validators.CreatePatientValidationGroup;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -18,9 +19,11 @@ public class PatientRequestDTO {
     private String address;
 
     @NotBlank(message = "Date of birth is required")
+    @Schema(type = "string", example = "1996-05-20", description = "Format: yyyy-MM-dd")
     private String dateOfBirth;
 
     @NotBlank(groups = CreatePatientValidationGroup.class, message = "Registered date is required")
+    @Schema(type = "string", example = "2026-07-18", description = "Format: yyyy-MM-dd")
     private String registeredDate;
 
     public String getName() {
