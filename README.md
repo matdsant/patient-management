@@ -17,9 +17,9 @@
 
 ## 📑 Índice
 
-- [🧱 Arquitetura de Serviços](#arquitetura-de-serviços)
+- [🧱 Arquitetura de Serviços](#arquitetura-de-servicos)
 - [🛠️ Tecnologias](#tecnologias)
-- [⚙️ Configuração por Serviço](#configuração-por-serviço)
+- [⚙️ Configuração por Serviço](#configuracao-por-servico)
   - [🩺 Patient Service](#patient-service)
   - [💳 Billing Service](#billing-service)
   - [📊 Analytics Service](#analytics-service)
@@ -28,17 +28,18 @@
   - [🗄️ Bancos de dados (Postgres)](#bancos-de-dados-postgres)
 - [🐳 Kafka](#kafka)
 - [🐳 Rodando localmente com Docker Compose](#rodando-localmente-com-docker-compose)
-- [📄 Documentação Swagger](#documentação-swagger)
-- [✅ Testes de Integração](#testes-de-integração)
-- [☁️ Infraestrutura (LocalStack / AWS CDK)](#infraestrutura-localstack--aws-cdk)
-- [✅ Resumo do Fluxo (explicação rápida)](#resumo-do-fluxo-explicação-rápida)
-- [🚧 Roadmap Técnico / Melhorias Futuras](#roadmap-técnico--melhorias-futuras)
-  - [🔴 Pontos Críticos](#pontos-críticos)
+- [📄 Documentação Swagger](#documentacao-swagger)
+- [✅ Testes de Integração](#testes-de-integracao)
+- [☁️ Infraestrutura (LocalStack / AWS CDK)](#infraestrutura-localstack-aws-cdk)
+- [✅ Resumo do Fluxo (explicação rápida)](#resumo-do-fluxo)
+- [🚧 Roadmap Técnico / Melhorias Futuras](#roadmap-tecnico-melhorias-futuras)
+  - [🔴 Pontos Críticos](#pontos-criticos)
   - [🟡 Pontos Importantes](#pontos-importantes)
   - [🟢 Pontos de Melhorias](#pontos-de-melhorias)
 
 ---
 
+<a id="arquitetura-de-servicos"></a>
 ## 🧱 Arquitetura de Serviços
 
 | Serviço | Responsabilidade | Comunicação | Porta HTTP | Outras portas |
@@ -53,6 +54,7 @@
 
 ---
 
+<a id="tecnologias"></a>
 ## 🛠️ Tecnologias
 
 - Java / Spring Boot
@@ -66,10 +68,12 @@
 
 ---
 
+<a id="configuracao-por-servico"></a>
 ## ⚙️ Configuração por Serviço
 
 > As dependências Maven e variáveis de ambiente abaixo já estão configuradas nos respectivos `pom.xml` e no `docker-compose.yml` — esta seção serve como referência do que cada serviço espera, não como um passo a passo de setup.
 
+<a id="patient-service"></a>
 ### 🩺 Patient Service
 
 **Variáveis de ambiente:**
@@ -89,6 +93,7 @@ Publica no tópico Kafka `patient` (`KafkaProducer.java`) e chama o Billing Serv
 
 ---
 
+<a id="billing-service"></a>
 ### 💳 Billing Service
 
 **Variáveis de ambiente:**
@@ -102,6 +107,7 @@ Servidor gRPC (`billing.BillingService`) consumido pelo Patient Service.
 
 ---
 
+<a id="analytics-service"></a>
 ### 📊 Analytics Service
 
 **Variáveis de ambiente:**
@@ -115,6 +121,7 @@ Consome o tópico `patient` (`KafkaConsumer.java`, `groupId=analytics-service`).
 
 ---
 
+<a id="auth-service"></a>
 ### 🔐 Auth Service
 
 **Variáveis de ambiente:**
@@ -145,6 +152,7 @@ Endpoints (`AuthController`):
 
 ---
 
+<a id="api-gateway"></a>
 ### 🌐 API Gateway
 
 Rotas configuradas em `application.yml` (Spring Cloud Gateway):
@@ -160,6 +168,7 @@ O filtro `JwtValidation` (`JwtValidationGatewayFilterFactory.java`) valida o tok
 
 ---
 
+<a id="bancos-de-dados-postgres"></a>
 ### 🗄️ Bancos de dados (Postgres)
 
 Uma instância por serviço com estado (`auth-service-db`, `patient-service-db`), mesmas credenciais:
@@ -172,6 +181,7 @@ POSTGRES_USER=admin_user
 
 ---
 
+<a id="kafka"></a>
 ## 🐳 Kafka
 
 O broker roda em modo **KRaft** (sem Zookeeper), imagem oficial `apache/kafka:3.9.2`:
@@ -192,6 +202,7 @@ De fora do Docker (ex.: um cliente Kafka local), use `localhost:9094`. Entre con
 
 ---
 
+<a id="rodando-localmente-com-docker-compose"></a>
 ## 🐳 Rodando localmente com Docker Compose
 
 O `docker-compose.yml` na raiz sobe toda a stack (2x Postgres, Kafka, e os 5 serviços Spring Boot) em uma rede compartilhada, com limites de CPU/memória por container (heap da JVM ajustado via `-XX:MaxRAMPercentage` para caber no limite).
@@ -245,6 +256,7 @@ As mesmas chamadas também estão disponíveis como requisições prontas para r
 
 ---
 
+<a id="documentacao-swagger"></a>
 ## 📄 Documentação Swagger
 
 Apenas `auth-service` e `patient-service` expõem REST diretamente e têm Swagger habilitado (`billing-service` é gRPC e `analytics-service` é consumidor Kafka, sem endpoints REST).
@@ -267,6 +279,7 @@ Apenas `auth-service` e `patient-service` expõem REST diretamente e têm Swagge
 
 ---
 
+<a id="testes-de-integracao"></a>
 ## ✅ Testes de Integração
 
 Módulo `integration-tests` (JUnit 5 + REST Assured), apontando para o `api-gateway` em `http://localhost:4004`. Requer a stack no ar (`docker compose up -d`) antes de rodar:
@@ -281,6 +294,7 @@ mvn test
 
 ---
 
+<a id="infraestrutura-localstack-aws-cdk"></a>
 ## ☁️ Infraestrutura (LocalStack / AWS CDK)
 
 Módulo `infrastructure` define, em AWS CDK (Java), o provisionamento da stack completa para simulação local via **LocalStack**: VPC, um `DatabaseInstance` Postgres por serviço com estado (`auth-service`, `patient-service`) com health check, um cluster MSK para o Kafka, um cluster ECS Fargate com um serviço por módulo (`auth-service`, `billing-service`, `analytics-service`, `patient-service`) e um `api-gateway` exposto via Application Load Balancer.
@@ -297,16 +311,19 @@ mvn compile exec:java   # gera o template CDK em ./cdk.out
 
 ---
 
+<a id="resumo-do-fluxo"></a>
 ## ✅ Resumo do Fluxo (explicação rápida)
 
 > Sistema de microsserviços com comunicação assíncrona via **Kafka** e chamadas síncronas via **gRPC**: quando um paciente é criado, um evento é publicado e o Analytics Service reage a esse evento, enquanto o Billing Service é chamado de forma síncrona para gerar a cobrança.
 
 ---
 
+<a id="roadmap-tecnico-melhorias-futuras"></a>
 ## 🚧 Roadmap Técnico / Melhorias Futuras
 
 > Levantamento de pontos de melhoria identificados em auditoria técnica do código atual. Organizado por prioridade para servir de backlog.
 
+<a id="pontos-criticos"></a>
 ### 🔴 Pontos Críticos
 
 - [x] ~~**Reimplementar `auth-service`**~~ — `AuthController`, `AuthService`, `UserService`, `JwtUtil`, `User`/`UserRepository`, DTOs e `SecurityConfig` já implementados, com `data.sql` populando um usuário de teste.
@@ -317,6 +334,7 @@ mvn compile exec:java   # gera o template CDK em ./cdk.out
 - [ ] **Tratar erro da chamada gRPC em `PatientService.createPatient()`** — hoje, se o `billing-service` estiver fora do ar, o paciente já foi salvo no Postgres e a exceção do gRPC sobe sem tratamento, retornando 500 sem indicar se a cobrança/evento Kafka foi criado. Avaliar `@Transactional` + tratamento explícito da falha (compensação ou fila de retry).
 - [ ] **Implementar `billing-service` de verdade** — `BillingGrpcService.createBillingAccount()` sempre retorna `accountId = "12345"` fixo, ignora o request e não tem entidade, repositório nem persistência.
 
+<a id="pontos-importantes"></a>
 ### 🟡 Pontos Importantes
 
 - [ ] Adicionar paginação em `GET /patients` (hoje usa `findAll()` sem limite).
@@ -329,6 +347,7 @@ mvn compile exec:java   # gera o template CDK em ./cdk.out
 - [ ] Configurar dead-letter queue / retry no consumidor Kafka do `analytics-service` (hoje uma falha de desserialização só loga e descarta a mensagem).
 - [ ] Adicionar timeout/tratamento de erro em `JwtValidationGatewayFilterFactory` para quando `auth-service` estiver fora do ar ou lento.
 
+<a id="pontos-de-melhorias"></a>
 ### 🟢 Pontos de Melhorias
 
 - [ ] Unificar os arquivos `.proto` duplicados (`billing_service.proto` existe idêntico em `billing-service` e `patient-service`; `patient_event.proto` existe idêntico em `patient-service` e `analytics-service`) em um módulo de contrato compartilhado.
