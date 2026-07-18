@@ -91,6 +91,15 @@ SPRING_SQL_INIT_MODE=always
 
 Publica no tópico Kafka `patient` (`KafkaProducer.java`) e chama o Billing Service via gRPC (`BillingServiceGrpcClient.java`, propriedades `billing.service.address` / `billing.service.grpc.port`, default `localhost:9001`).
 
+Endpoints (`PatientController`, base `/patients`):
+
+| Método | Path | Descrição | Códigos de resposta |
+|---|---|---|---|
+| `GET` | `/patients` | Lista todos os pacientes (sem paginação) | `200` |
+| `POST` | `/patients` | Cria um novo paciente (`name`, `email`, `address`, `dateOfBirth`, `registeredDate`, formato `yyyy-MM-dd`) | `200` sucesso, `400` validação, `409` e-mail já existe |
+| `PUT` | `/patients/{id}` | Atualiza um paciente existente (`registeredDate` não é usado nesse endpoint) | `200` sucesso, `400` validação, `404` não encontrado, `409` e-mail já existe |
+| `DELETE` | `/patients/{id}` | Remove um paciente | `204` sucesso, `404` não encontrado |
+
 ---
 
 <a id="billing-service"></a>
@@ -163,6 +172,8 @@ Rotas configuradas em `application.yml` (Spring Cloud Gateway):
 | `/api/patients/**` | `patient-service:4000` | `StripPrefix=1`, `JwtValidation` |
 | `/api-docs/patients` | `patient-service:4000/v3/api-docs` | `RewritePath` |
 | `/api-docs/auth` | `auth-service:4005/v3/api-docs` | `RewritePath` |
+| `/swagger-ui/patients/**` | `patient-service:4000/swagger-ui/**` | `RewritePath` |
+| `/v3/api-docs/**` | `patient-service:4000/v3/api-docs/**` | — |
 
 O filtro `JwtValidation` (`JwtValidationGatewayFilterFactory.java`) valida o token chamando `GET /validate` no Auth Service antes de liberar a requisição.
 
@@ -266,16 +277,19 @@ Apenas `auth-service` e `patient-service` expõem REST diretamente e têm Swagge
 | Serviço | URL |
 |---|---|
 | auth-service | http://localhost:4005/swagger-ui.html |
-| patient-service | http://localhost:4000/swagger-ui.html |
+| patient-service (via `api-gateway`) | http://localhost:4004/swagger-ui/patients/index.html |
+| patient-service (acesso direto) | http://localhost:4000/swagger-ui.html |
 
-**OpenAPI JSON via `api-gateway`** (sem UI, só o contrato cru — o gateway não expõe uma interface Swagger própria):
+O `patient-service` tem rotas de proxy dedicadas no `api-gateway` (`/swagger-ui/patients/**` e `/v3/api-docs/**`) justamente para que o Swagger continue acessível mesmo se a porta `4000` for fechada no host (ver roadmap). O spec já vem com `servers: http://localhost:4004/api` (`OpenApiConfig.java`) e um esquema `bearerAuth`, então o botão **Authorize** funciona: gere um token em `/auth/login` (Swagger do `auth-service`), cole só o valor do token (sem `Bearer`) e o "Try it out" funciona de ponta a ponta em `/api/patients/**`, já passando pelo filtro `JwtValidation`.
+
+**OpenAPI JSON cru:**
 
 | Serviço | URL |
 |---|---|
-| auth-service | http://localhost:4004/api-docs/auth |
-| patient-service | http://localhost:4004/api-docs/patients |
+| auth-service (via gateway) | http://localhost:4004/api-docs/auth |
+| patient-service (via gateway) | http://localhost:4004/api-docs/patients ou http://localhost:4004/v3/api-docs |
 
-> Rotas protegidas por `JwtValidation` (ex.: `GET /api/patients`) só aceitam requisições via `api-gateway` (`4004`) com header `Authorization: Bearer <token>`. Para testar sem o gateway, use a porta direta do serviço — nesse caso o filtro de JWT não se aplica.
+> Rotas protegidas por `JwtValidation` (ex.: `GET /api/patients`) só aceitam requisições via `api-gateway` (`4004`) com header `Authorization: Bearer <token>`. O acesso direto ao `patient-service` (`4000`) não passa por esse filtro.
 
 ---
 
