@@ -215,6 +215,28 @@ curl http://localhost:4004/api/patients -H "Authorization: Bearer <token>"
 
 ---
 
+## 📄 Documentação Swagger
+
+Apenas `auth-service` e `patient-service` expõem REST diretamente e têm Swagger habilitado (`billing-service` é gRPC e `analytics-service` é consumidor Kafka, sem endpoints REST).
+
+**Swagger UI (interface completa, com "Try it out"):**
+
+| Serviço | URL |
+|---|---|
+| auth-service | http://localhost:4005/swagger-ui.html |
+| patient-service | http://localhost:4000/swagger-ui.html |
+
+**OpenAPI JSON via `api-gateway`** (sem UI, só o contrato cru — o gateway não expõe uma interface Swagger própria):
+
+| Serviço | URL |
+|---|---|
+| auth-service | http://localhost:4004/api-docs/auth |
+| patient-service | http://localhost:4004/api-docs/patients |
+
+> Rotas protegidas por `JwtValidation` (ex.: `GET /api/patients`) só aceitam requisições via `api-gateway` (`4004`) com header `Authorization: Bearer <token>`. Para testar sem o gateway, use a porta direta do serviço — nesse caso o filtro de JWT não se aplica.
+
+---
+
 ## ✅ Testes de Integração
 
 Módulo `integration-tests` (JUnit 5 + REST Assured), apontando para o `api-gateway` em `http://localhost:4004`. Requer a stack no ar (`docker compose up -d`) antes de rodar:
