@@ -109,6 +109,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: password
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_SQL_INIT_MODE: always
+      JWT_SECRET: Y2hhVEc3aHJnb0hYTzMyZ2ZqVkpiZ1RkZG93YWxrUkM=
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75.0 -XX:+UseSerialGC
     deploy:
       resources:
