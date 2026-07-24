@@ -1,12 +1,12 @@
-# Patient Management System — PMS 🏥
+# Patient Management System (PMS) 🏥
 
 ---
 
 > ## 📖 Sobre o Projeto
 > Este projeto é um sistema de **microsserviços** construído com Spring Boot, que gerencia o cadastro de pacientes e dispara automaticamente um fluxo de eventos entre serviços para tratar **cobrança** e **analytics**.
 > A comunicação entre os serviços combina dois modelos:
-> - **Assíncrona (event-driven)** via **Apache Kafka** — usada para propagar eventos, como a criação de um paciente, para os serviços interessados (ex.: analytics).
-> - **Síncrona** via **gRPC / Protobuf** — usada quando um serviço precisa chamar outro diretamente e aguardar uma resposta (ex.: Patient Service → Billing Service).
+> - **Assíncrona (event-driven)** via **Apache Kafka**, usada para propagar eventos, como a criação de um paciente, para os serviços interessados (ex.: analytics).
+> - **Síncrona** via **gRPC / Protobuf**, usada quando um serviço precisa chamar outro diretamente e aguardar uma resposta (ex.: Patient Service → Billing Service).
 >> ### Fluxo típico
 >> 1. Um paciente é criado no **Patient Service** (via API Gateway, com JWT emitido pelo Auth Service).
 >> 2. O Patient Service publica um **evento no tópico Kafka `patient`** descrevendo o novo cadastro.
@@ -44,13 +44,13 @@
 
 | Serviço | Responsabilidade | Comunicação | Porta HTTP | Outras portas |
 |---|---|---|---|---|
-| **API Gateway** | Ponto único de entrada, roteamento e validação de JWT | Spring Cloud Gateway (reativo) | 4004 | — |
-| **Auth Service** | Autenticação e gerenciamento de usuários (JWT) | REST + banco próprio | 4005 | — |
-| **Patient Service** | Cadastro e gestão de pacientes | Kafka (producer) + gRPC (client do Billing) | 4000 | — |
+| **API Gateway** | Ponto único de entrada, roteamento e validação de JWT | Spring Cloud Gateway (reativo) | 4004 | - |
+| **Auth Service** | Autenticação e gerenciamento de usuários (JWT) | REST + banco próprio | 4005 | - |
+| **Patient Service** | Cadastro e gestão de pacientes | Kafka (producer) + gRPC (client do Billing) | 4000 | - |
 | **Billing Service** | Geração de cobranças | gRPC (server) | 4001 | gRPC: 9001 |
-| **Analytics Service** | Consome eventos de pacientes para análise | Kafka (consumer) | 4002 | — |
-| **Integration Tests** | Testes de integração ponta a ponta (JUnit 5 + REST Assured) | HTTP, contra os serviços acima | — | — |
-| **Infrastructure** | Provisionamento da stack na AWS (via LocalStack) | AWS CDK (Java) | — | — |
+| **Analytics Service** | Consome eventos de pacientes para análise | Kafka (consumer) | 4002 | - |
+| **Integration Tests** | Testes de integração ponta a ponta (JUnit 5 + REST Assured) | HTTP, contra os serviços acima | - | - |
+| **Infrastructure** | Provisionamento da stack na AWS (via LocalStack) | AWS CDK (Java) | - | - |
 
 ---
 
@@ -71,7 +71,7 @@
 <a id="configuracao-por-servico"></a>
 ## ⚙️ Configuração por Serviço
 
-> As dependências Maven e variáveis de ambiente abaixo já estão configuradas nos respectivos `pom.xml` e no `docker-compose.yml` — esta seção serve como referência do que cada serviço espera, não como um passo a passo de setup.
+> As dependências Maven e variáveis de ambiente abaixo já estão configuradas nos respectivos `pom.xml` e no `docker-compose.yml`. Esta seção serve como referência do que cada serviço espera, não como um passo a passo de setup.
 
 <a id="patient-service"></a>
 ### 🩺 Patient Service
@@ -148,7 +148,7 @@ SPRING_SQL_INIT_MODE=always
 > conecte em `localhost:5433` (auth-service-db) ou `localhost:5432` (patient-service-db)
 > usando as credenciais acima.
 
-> ⚠️ `JwtUtil` também exige uma property `jwt.secret` (chave Base64) para assinar/validar o token, mas ela **não** está definida em `application.properties` nem no `docker-compose.yml` — veja o roadmap abaixo.
+> ⚠️ `JwtUtil` também exige uma property `jwt.secret` (chave Base64) para assinar/validar o token, mas ela **não** está definida em `application.properties` nem no `docker-compose.yml`. Veja o roadmap abaixo.
 
 Endpoints (`AuthController`):
 
@@ -157,7 +157,7 @@ Endpoints (`AuthController`):
 | `POST` | `/login` | Recebe `{ email, password }`, valida contra `UserRepository` (senha com `BCryptPasswordEncoder`) e retorna `{ token }` (JWT, expira em 10h) |
 | `GET` | `/validate` | Recebe `Authorization: Bearer <token>` e retorna 200/401 conforme a assinatura/validade do token (`JwtUtil`) |
 
-`SecurityConfig` hoje libera todas as rotas (`permitAll()`) e desabilita CSRF — a própria emissão/validação do JWT é quem controla o acesso. `data.sql` popula a tabela `users` com um usuário de teste (`testuser@test.com` / `password123`, role `ADMIN`) se ela ainda não existir.
+`SecurityConfig` hoje libera todas as rotas (`permitAll()`) e desabilita CSRF: a própria emissão/validação do JWT é quem controla o acesso. `data.sql` popula a tabela `users` com um usuário de teste (`testuser@test.com` / `password123`, role `ADMIN`) se ela ainda não existir.
 
 ---
 
@@ -173,7 +173,7 @@ Rotas configuradas em `application.yml` (Spring Cloud Gateway):
 | `/api-docs/patients` | `patient-service:4000/v3/api-docs` | `RewritePath` |
 | `/api-docs/auth` | `auth-service:4005/v3/api-docs` | `RewritePath` |
 | `/swagger-ui/patients/**` | `patient-service:4000/swagger-ui/**` | `RewritePath` |
-| `/v3/api-docs/**` | `patient-service:4000/v3/api-docs/**` | — |
+| `/v3/api-docs/**` | `patient-service:4000/v3/api-docs/**` | - |
 
 O filtro `JwtValidation` (`JwtValidationGatewayFilterFactory.java`) valida o token chamando `GET /validate` no Auth Service antes de liberar a requisição.
 
@@ -209,7 +209,7 @@ KAFKA_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
 
 De fora do Docker (ex.: um cliente Kafka local), use `localhost:9094`. Entre containers, use `kafka:9092`.
 
-> Nota: a imagem `bitnami/kafka` deixou de publicar tags versionadas gratuitamente nesse repositório — por isso o projeto usa a imagem oficial da Apache.
+> Nota: a imagem `bitnami/kafka` deixou de publicar tags versionadas gratuitamente nesse repositório, por isso o projeto usa a imagem oficial da Apache.
 
 ---
 
@@ -261,9 +261,9 @@ curl http://localhost:4004/api/patients -H "Authorization: Bearer <token>"
 
 As mesmas chamadas também estão disponíveis como requisições prontas para rodar direto na IDE (IntelliJ HTTP Client), sem precisar copiar `curl`:
 
-- `api-requests/auth-service/login.http` — login e captura automática do token (`client.global.set`).
-- `api-requests/auth-service/validate.http` — valida o token capturado pelo `login.http`.
-- `grpc-requests/billing-service/create-billing-account.http` — chamada gRPC direta ao `billing-service`.
+- `api-requests/auth-service/login.http`: login e captura automática do token (`client.global.set`).
+- `api-requests/auth-service/validate.http`: valida o token capturado pelo `login.http`.
+- `grpc-requests/billing-service/create-billing-account.http`: chamada gRPC direta ao `billing-service`.
 
 ---
 
@@ -303,8 +303,8 @@ cd integration-tests
 mvn test
 ```
 
-- `AuthIntegrationTest` — login com credenciais válidas retorna 200 + token; credenciais inválidas retornam 401.
-- `PatientIntegrationTest` — faz login, usa o token para chamar `GET /api/patients` via gateway e valida o retorno.
+- `AuthIntegrationTest`: login com credenciais válidas retorna 200 + token; credenciais inválidas retornam 401.
+- `PatientIntegrationTest`: faz login, usa o token para chamar `GET /api/patients` via gateway e valida o retorno.
 
 ---
 
@@ -340,21 +340,21 @@ mvn compile exec:java   # gera o template CDK em ./cdk.out
 <a id="pontos-criticos"></a>
 ### 🔴 Pontos Críticos
 
-- [x] ~~**Reimplementar `auth-service`**~~ — `AuthController`, `AuthService`, `UserService`, `JwtUtil`, `User`/`UserRepository`, DTOs e `SecurityConfig` já implementados, com `data.sql` populando um usuário de teste.
-- [x] ~~**Definir `JWT_SECRET` no `auth-service`**~~ — `JWT_SECRET=Y2hhVEc3aHJnb0hYTzMyZ2ZqVkpiZ1RkZG93YWxrUkM=` adicionada às variáveis de ambiente do `auth-service` no `docker-compose.yml` (mesmo valor de referência já usado em `infrastructure`/CDK).
-- [ ] **Endurecer `SecurityConfig` do auth-service** — hoje libera todas as rotas (`anyRequest().permitAll()`) só para viabilizar `/login` e `/validate` publicamente; vale revisar se algo mais deveria exigir autenticação conforme o serviço crescer.
-- [ ] **Fechar as portas dos serviços internos no host** — `patient-service` (4000), `billing-service` (4001/9001) e `analytics-service` (4002) são acessíveis diretamente via Docker, sem passar pelo `api-gateway` e sem nenhuma checagem de JWT própria. O filtro `JwtValidation` do gateway é hoje o único ponto de auth do sistema e é trivialmente contornável.
-- [x] ~~**Criar testes de verdade**~~ — o módulo `integration-tests` agora cobre o fluxo de login (`AuthIntegrationTest`) e o acesso autenticado a `GET /api/patients` via gateway (`PatientIntegrationTest`). Ainda faltam testes unitários para `PatientController`, `PatientService`, `PatientMapper`, `GlobalExceptionHandler`, `JwtValidationGatewayFilterFactory`, `BillingGrpcService` e `KafkaConsumer`.
-- [ ] **Tratar erro da chamada gRPC em `PatientService.createPatient()`** — hoje, se o `billing-service` estiver fora do ar, o paciente já foi salvo no Postgres e a exceção do gRPC sobe sem tratamento, retornando 500 sem indicar se a cobrança/evento Kafka foi criado. Avaliar `@Transactional` + tratamento explícito da falha (compensação ou fila de retry).
-- [ ] **Implementar `billing-service` de verdade** — `BillingGrpcService.createBillingAccount()` sempre retorna `accountId = "12345"` fixo, ignora o request e não tem entidade, repositório nem persistência.
+- [x] ~~**Reimplementar `auth-service`**~~: `AuthController`, `AuthService`, `UserService`, `JwtUtil`, `User`/`UserRepository`, DTOs e `SecurityConfig` já implementados, com `data.sql` populando um usuário de teste.
+- [x] ~~**Definir `JWT_SECRET` no `auth-service`**~~: `JWT_SECRET=Y2hhVEc3aHJnb0hYTzMyZ2ZqVkpiZ1RkZG93YWxrUkM=` adicionada às variáveis de ambiente do `auth-service` no `docker-compose.yml` (mesmo valor de referência já usado em `infrastructure`/CDK).
+- [ ] **Endurecer `SecurityConfig` do auth-service**: hoje libera todas as rotas (`anyRequest().permitAll()`) só para viabilizar `/login` e `/validate` publicamente; vale revisar se algo mais deveria exigir autenticação conforme o serviço crescer.
+- [ ] **Fechar as portas dos serviços internos no host**: `patient-service` (4000), `billing-service` (4001/9001) e `analytics-service` (4002) são acessíveis diretamente via Docker, sem passar pelo `api-gateway` e sem nenhuma checagem de JWT própria. O filtro `JwtValidation` do gateway é hoje o único ponto de auth do sistema e é trivialmente contornável.
+- [x] ~~**Criar testes de verdade**~~: o módulo `integration-tests` agora cobre o fluxo de login (`AuthIntegrationTest`) e o acesso autenticado a `GET /api/patients` via gateway (`PatientIntegrationTest`). Ainda faltam testes unitários para `PatientController`, `PatientService`, `PatientMapper`, `GlobalExceptionHandler`, `JwtValidationGatewayFilterFactory`, `BillingGrpcService` e `KafkaConsumer`.
+- [ ] **Tratar erro da chamada gRPC em `PatientService.createPatient()`**: hoje, se o `billing-service` estiver fora do ar, o paciente já foi salvo no Postgres e a exceção do gRPC sobe sem tratamento, retornando 500 sem indicar se a cobrança/evento Kafka foi criado. Avaliar `@Transactional` + tratamento explícito da falha (compensação ou fila de retry).
+- [ ] **Implementar `billing-service` de verdade**: `BillingGrpcService.createBillingAccount()` sempre retorna `accountId = "12345"` fixo, ignora o request e não tem entidade, repositório nem persistência.
 
 <a id="pontos-importantes"></a>
 ### 🟡 Pontos Importantes
 
 - [ ] Adicionar paginação em `GET /patients` (hoje usa `findAll()` sem limite).
 - [ ] Criar endpoint `GET /patients/{id}` (hoje só existe listagem completa).
-- [x] ~~Corrigir códigos HTTP~~ — `PatientNotFoundException` agora retorna 404 e `EmailAlreadyExistsException` retorna 409 (`GlobalExceptionHandler`), com os códigos documentados via `@ApiResponses` em cada endpoint do `PatientController`.
-- [ ] Adotar Flyway ou Liquibase para migrações — hoje o schema é gerenciado só por `ddl-auto=update` + `data.sql`.
+- [x] ~~Corrigir códigos HTTP~~: `PatientNotFoundException` agora retorna 404 e `EmailAlreadyExistsException` retorna 409 (`GlobalExceptionHandler`), com os códigos documentados via `@ApiResponses` em cada endpoint do `PatientController`.
+- [ ] Adotar Flyway ou Liquibase para migrações: hoje o schema é gerenciado só por `ddl-auto=update` + `data.sql`.
 - [ ] Adicionar Spring Boot Actuator (`/health`, `/metrics`) nos 5 serviços e configurar `healthcheck:` no `docker-compose.yml` para cada um (hoje só Postgres e Kafka têm healthcheck; `depends_on: service_started` não garante que a aplicação já esteja pronta).
 - [ ] Adicionar rate limiting no `api-gateway` (nenhum filtro de limite de requisições configurado hoje).
 - [ ] Mover credenciais dos bancos (`POSTGRES_PASSWORD=password`, repetida em dois bancos) para `.env`/secrets em vez de texto plano no `docker-compose.yml`.
@@ -365,7 +365,7 @@ mvn compile exec:java   # gera o template CDK em ./cdk.out
 ### 🟢 Pontos de Melhorias
 
 - [ ] Unificar os arquivos `.proto` duplicados (`billing_service.proto` existe idêntico em `billing-service` e `patient-service`; `patient_event.proto` existe idêntico em `patient-service` e `analytics-service`) em um módulo de contrato compartilhado.
-- [ ] Padronizar o formato de resposta de erro entre serviços — hoje só `patient-service` tem `@ControllerAdvice`, e mesmo lá o formato varia entre erros de validação e erros de negócio.
+- [ ] Padronizar o formato de resposta de erro entre serviços: hoje só `patient-service` tem `@ControllerAdvice`, e mesmo lá o formato varia entre erros de validação e erros de negócio.
 - [ ] Adicionar versionamento de API (ex.: prefixo `/v1/...`).
 - [ ] Reduzir duplicação entre `application.yml` e `application-prod.yml` no `api-gateway` (hoje duplicam a lista inteira de rotas só para trocar o host).
 - [ ] Trocar `String` por `LocalDate` (com validação de formato) nos campos de data do `PatientRequestDTO`, para falhar de forma limpa em vez de estourar exceção no parse.
